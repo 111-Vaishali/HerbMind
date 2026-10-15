@@ -75,7 +75,7 @@ function SkeletonCard() {
 }
 
 /* ---------------- Result card ---------------- */
-function ResultCard({ remedy, index, lang, t }) {
+function ResultCard({ remedy, index, lang, t, isSaved, onToggleSave }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const isMr = lang === "mr";
 
@@ -216,6 +216,43 @@ function ResultCard({ remedy, index, lang, t }) {
         </p>
       </div>
 
+      <div className="mt-6 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() => onToggleSave(remedy)}
+          aria-pressed={isSaved}
+          className="rounded-full border border-herb-200 px-4 py-2 text-sm font-semibold text-herb-800 transition hover:bg-herb-50"
+        >
+          {isSaved ? "♥ Saved" : "♡ Save remedy"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="rounded-full border border-herb-200 px-4 py-2 text-sm font-semibold text-herb-800 transition hover:bg-herb-50"
+        >
+          🖨 Print
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const text = `${remedy.condition || "Traditional remedy"}\n\n${remedy.remedy || ""}\n\nShared from HerbMind. Traditional information, not medical advice.`;
+            window.open(
+              `https://wa.me/?text=${encodeURIComponent(text)}`,
+              "_blank",
+              "noopener,noreferrer"
+            );
+          }}
+          className="rounded-full border border-herb-200 px-4 py-2 text-sm font-semibold text-herb-800 transition hover:bg-herb-50"
+        >
+          WhatsApp Share
+        </button>
+      </div>
+
+
+
+
       {/* Source */}
       <p className="mt-auto pt-4 text-xs text-gray-400">
         {t.source}: {remedy.source}
@@ -223,6 +260,202 @@ function ResultCard({ remedy, index, lang, t }) {
     </article>
   );
 }
+
+function AddRemedyForm({ onClose }) {
+  const [form, setForm] = useState({
+    contributor: "",
+    condition: "",
+    ingredients: "",
+    remedy: "",
+  });
+  const [status, setStatus] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const updateField = (e) => {
+    setForm((current) => ({
+      ...current,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  const submitRemedy = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setStatus("");
+
+    try {
+      const response = await fetch(`${API_URL}/remedies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Could not submit remedy.");
+      }
+
+      setStatus("success");
+      setForm({
+        contributor: "",
+        condition: "",
+        ingredients: "",
+        remedy: "",
+      });
+    } catch (err) {
+      setStatus(err.message || "Unable to connect to the backend.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-remedy-title"
+        className="mx-auto my-8 max-w-2xl rounded-3xl bg-white p-6 shadow-lift sm:p-8"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-widest text-herb-600">
+              Community contributions
+            </p>
+            <h2 id="add-remedy-title" className="mt-2 text-3xl font-bold text-ink">
+              Share a Remedy 🌿
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-gray-500">
+              Share traditional knowledge. Submissions will be reviewed before
+              they can appear publicly.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close form"
+            className="rounded-full px-3 py-2 text-xl text-gray-500 hover:bg-gray-100"
+          >
+            ×
+          </button>
+        </div>
+
+        {status === "success" ? (
+          <div className="mt-6 rounded-2xl border border-herb-200 bg-herb-50 p-5">
+            <h3 className="font-semibold text-herb-900">
+              Thank you for contributing!
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-herb-800">
+              Your remedy has been submitted for review. It is not published
+              automatically.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-4 rounded-full bg-herb-700 px-5 py-2.5 font-semibold text-white"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submitRemedy} className="mt-6 space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-ink">
+                Your name (optional)
+              </label>
+              <input
+                name="contributor"
+                value={form.contributor}
+                onChange={updateField}
+                maxLength={80}
+                placeholder="e.g. Vaishali"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:border-herb-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-ink">
+                Health concern *
+              </label>
+              <input
+                name="condition"
+                required
+                maxLength={120}
+                value={form.condition}
+                onChange={updateField}
+                placeholder="e.g. seasonal wellness"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:border-herb-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-ink">
+                Ingredients *
+              </label>
+              <input
+                name="ingredients"
+                required
+                maxLength={500}
+                value={form.ingredients}
+                onChange={updateField}
+                placeholder="e.g. ginger, water"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:border-herb-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-ink">
+                Remedy and preparation *
+              </label>
+              <textarea
+                name="remedy"
+                required
+                minLength={10}
+                maxLength={3000}
+                rows={5}
+                value={form.remedy}
+                onChange={updateField}
+                placeholder="Describe how it is traditionally prepared. Include relevant cautions."
+                className="w-full resize-y rounded-xl border border-gray-200 px-4 py-3 outline-none focus:border-herb-500"
+              />
+            </div>
+
+            <p className="text-xs leading-5 text-amber-800">
+              Traditional information only. Do not include dangerous
+              instructions or claim that a remedy cures a disease. Submissions
+              require review.
+            </p>
+
+            {status && (
+              <p role="alert" className="text-sm text-red-700">
+                {status}
+              </p>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border border-gray-200 px-5 py-3 font-semibold text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="rounded-full bg-herb-700 px-6 py-3 font-semibold text-white disabled:opacity-60"
+              >
+                {submitting ? "Submitting..." : "Submit for review"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 /* ---------------- App ---------------- */
 function App() {
@@ -238,6 +471,34 @@ function App() {
   const t = STRINGS[lang];
   const isMr = lang === "mr";
 
+  
+const [savedRemedies, setSavedRemedies] = useState(getSavedRemedies);
+const [page, setPage] = useState("home");
+const [showAddForm, setShowAddForm] = useState(false);
+
+useEffect(() => {
+  try {
+    localStorage.setItem(SAVED_KEY, JSON.stringify(savedRemedies));
+  } catch (err) {
+    console.error("Could not save remedies in this browser:", err);
+  }
+}, [savedRemedies]);
+
+const toggleSavedRemedy = (remedy) => {
+  setSavedRemedies((current) => {
+    const exists = current.some(
+      (item) => String(item.remedy_id) === String(remedy.remedy_id)
+    );
+
+    return exists
+      ? current.filter(
+          (item) => String(item.remedy_id) !== String(remedy.remedy_id)
+        )
+      : [...current, remedy];
+  });
+};
+
+
   // keep <html lang>, tab title and saved preference in sync with the toggle
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -249,7 +510,21 @@ function App() {
     }
   }, [lang]);
 
+  
+const SAVED_KEY = "herbmind-saved-remedies";
+
+function getSavedRemedies() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+
   const searchRemedies = async (searchQuery = query, apiQuery) => {
+    setPage("home");
     if (!searchQuery.trim()) {
       setError("empty");
       return;
@@ -351,6 +626,30 @@ function App() {
                 </a>
               ))}
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPage("home");
+                setShowAddForm(true);
+              }}
+              className="rounded-full bg-herb-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-herb-800"
+            >
+              + Add Your Remedy
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPage("saved");
+                setShowAddForm(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="rounded-full border border-herb-200 px-4 py-2 text-sm font-semibold text-herb-800 transition hover:bg-herb-50"
+            >
+              ♥ Saved ({savedRemedies.length})
+            </button>
+            
 
             <LanguageToggle
               lang={lang}
@@ -499,13 +798,19 @@ function App() {
             {!loading && results.length > 0 && (
               <div className="grid gap-6 md:grid-cols-2">
                 {results.map((remedy, i) => (
+                  
                   <ResultCard
                     key={remedy.remedy_id}
                     remedy={remedy}
                     index={i}
                     lang={lang}
                     t={t}
+                    isSaved={savedRemedies.some(
+                      (item) => String(item.remedy_id) === String(remedy.remedy_id)
+                    )}
+                    onToggleSave={toggleSavedRemedy}
                   />
+
                 ))}
               </div>
             )}
@@ -522,6 +827,56 @@ function App() {
           </section>
         )}
       </div>
+
+      {page === "saved" && (
+        <section className="mx-auto max-w-6xl px-6 py-14">
+          <p className="text-sm font-semibold uppercase tracking-widest text-herb-600">
+            Your personal collection
+          </p>
+
+          <h2 className="mt-2 text-4xl font-bold text-ink">
+            My Remedy Box ♥
+          </h2>
+
+          <p className="mt-2 text-gray-500">
+            Your saved remedies stay in this browser, even after refreshing.
+          </p>
+
+          {savedRemedies.length === 0 ? (
+            <div className="mt-8 rounded-3xl border border-dashed border-herb-200 bg-white p-12 text-center">
+              <p className="text-4xl">🍃</p>
+              <h3 className="mt-3 text-xl font-semibold">
+                Your box is empty
+              </h3>
+              <p className="mt-2 text-sm text-gray-500">
+                Search for remedies and tap ♡ Save remedy to add them here.
+              </p>
+              <button
+                type="button"
+                onClick={() => setPage("home")}
+                className="mt-5 rounded-full bg-herb-700 px-5 py-3 font-semibold text-white"
+              >
+                Explore remedies
+              </button>
+            </div>
+          ) : (
+            <div className="mt-8 grid gap-6 md:grid-cols-2">
+              {savedRemedies.map((remedy, i) => (
+                <ResultCard
+                  key={remedy.remedy_id}
+                  remedy={remedy}
+                  index={i}
+                  lang={lang}
+                  t={t}
+                  isSaved
+                  onToggleSave={toggleSavedRemedy}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      
 
       {/* FEATURES */}
       {!hasSearched && (
@@ -594,7 +949,9 @@ function App() {
           </div>
         </div>
       </section>
-
+      {showAddForm && (
+        <AddRemedyForm onClose={() => setShowAddForm(false)} />
+      )}
       {/* FOOTER */}
       <footer className="border-t border-herb-100 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-8 text-center text-sm text-gray-500">
