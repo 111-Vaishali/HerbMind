@@ -4,6 +4,12 @@ import faiss
 import pickle
 from sentence_transformers import SentenceTransformer
 import pandas as pd
+
+import json
+from pathlib import Path
+from datetime import datetime, timezone
+from uuid import uuid4
+from pydantic import BaseModel, Field
 app = FastAPI(
     title="Dadi Maa Ke Nuskhe API"
 )
@@ -15,8 +21,8 @@ app.add_middleware(
         "http://127.0.0.1:5173"
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 index = faiss.read_index(
     "data/processed/remedies.faiss"
@@ -34,6 +40,62 @@ model = SentenceTransformer(
     "all-MiniLM-L6-v2"
 )
 
+
+class RemedySubmission(BaseModel):
+    contributor: str = Field(default="", max_length=80)
+    condition: str = Field(min_length=2, max_length=120)
+    ingredients: str = Field(min_length=2, max_length=500)
+    remedy: str = Field(min_length=10, max_length=3000)
+
+
+SUBMISSIONS_FILE = Path("data/submissions/pending_remedies.json")
+
+
+@app.post("/remedies", status_code=201)
+def submit_remedy(submission: RemedySubmission):
+    # Store contributions separately from the searchable, approved dataset.
+    SUBMISSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    if SUBMISSIONS_FILE.exists():
+        try:
+            submissions = json.loads(
+                SUBMISSIONS_FILE.read_text(encoding="utf-8")
+            )
+            if not isinstance(submissions, list):
+                submissions = []
+        except (json.JSONDecodeError, OSError):
+            submissions = []
+    else:
+        submissions = []
+
+    new_remedy = {
+        "submission_id": str(uuid4()),
+        "contributor": submission.contributor.strip() or "Anonymous",
+        "condition": submission.condition.strip(),
+        "ingredients": submission.ingredients.strip(),
+        "remedy": submission.remedy.strip(),
+        "status": "pending",
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    submissions.append(new_remedy)
+
+    SUBMISSIONS_FILE.write_text(
+        json.dumps(submissions, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    return {
+        "message": "Remedy submitted for review.",
+        "submission_id": new_remedy["submission_id"],
+        "status": "pending",
+    }
+
+
+@app.get("/conditions")
+def conditions():
+    names = df["normalized_condition"].dropna().astype(str).str.strip()
+    return {"conditions": sorted(set(n for n in names if n))}
 
 @app.get("/")
 def home():
