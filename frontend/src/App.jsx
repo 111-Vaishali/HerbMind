@@ -1,10 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGUAGES, POPULAR, STRINGS } from "./i18n/strings";
 import { toSearchQuery, tr } from "./i18n/glossary";
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import REMEDIES_MR from "./i18n/remedies_mr.json";
 
 const API_URL = "http://127.0.0.1:8000";
 const LANG_KEY = "herbmind-lang";
+
+const SAVED_KEY = "herbmind-saved-remedies";
+
+function getSavedRemedies() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
 
 const DETAILS = [
   { key: "quantity", labelKey: "quantity", icon: "⚖️" },
@@ -311,7 +323,7 @@ function AddRemedyForm({ onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-4">
+    <div className="px-4 py-12">
       <div
         role="dialog"
         aria-modal="true"
@@ -473,8 +485,22 @@ function App() {
 
   
 const [savedRemedies, setSavedRemedies] = useState(getSavedRemedies);
-const [page, setPage] = useState("home");
-const [showAddForm, setShowAddForm] = useState(false);
+const navigate = useNavigate();
+const { pathname } = useLocation();
+
+const [conditions, setConditions] = useState([]);
+const [showAllConditions, setShowAllConditions] = useState(false);
+
+useEffect(() => {
+  fetch(`${API_URL}/conditions`)
+    .then((r) => r.json())
+    .then((d) => setConditions(d.conditions || []))
+    .catch(() => {});
+}, []);
+
+useEffect(() => {
+  window.scrollTo(0, 0);
+}, [pathname]);
 
 useEffect(() => {
   try {
@@ -510,21 +536,10 @@ const toggleSavedRemedy = (remedy) => {
     }
   }, [lang]);
 
-  
-const SAVED_KEY = "herbmind-saved-remedies";
-
-function getSavedRemedies() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
-    return Array.isArray(saved) ? saved : [];
-  } catch {
-    return [];
-  }
-}
 
 
   const searchRemedies = async (searchQuery = query, apiQuery) => {
-    setPage("home");
+    
     if (!searchQuery.trim()) {
       setError("empty");
       return;
@@ -577,6 +592,13 @@ function getSavedRemedies() {
     searchRemedies(shown, apiQuery);
   };
 
+  const handleConditionSearch = (name) => {
+  const apiQuery = `home remedy for ${name}`;
+  const shown = tr("condition", name, lang) || name;
+  setQuery(shown);
+  searchRemedies(shown, apiQuery);
+};
+
   const clearSearch = () => {
     setQuery("");
     setResults([]);
@@ -589,17 +611,26 @@ function getSavedRemedies() {
     error === "empty" ? t.errEmpty : error === "backend" ? t.errBackend : "";
 
   const navLinks = [
-    { href: "#home", label: t.navHome },
-    { href: "#about", label: t.navAbout },
-    { href: "#safety", label: t.navSafety },
-  ];
+  { to: "/", label: t.navHome },
+  { to: "/search", label: isMr ? "उपाय शोधा" : "Find Remedy" },
+  { to: "/share", label: isMr ? "उपाय शेअर करा" : "Share a Remedy" },
+  { to: "/saved", label: `♥ ${isMr ? "जतन केलेले" : "Saved"} (${savedRemedies.length})` },
+  { to: "/about", label: t.navAbout },
+];
 
-  return (
+const navClass = ({ isActive }) =>
+  `whitespace-nowrap rounded-full px-4 py-2 transition ${
+    isActive
+      ? "bg-herb-100 text-herb-800"
+      : "text-gray-600 hover:bg-herb-50 hover:text-herb-700"
+  }`;
+
+    return (
     <div className="min-h-screen">
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 border-b border-herb-100/80 bg-white/75 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <a href="#home" className="flex min-w-0 items-center gap-3">
+          <Link to="/" className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-herb-500 to-herb-800 text-xl shadow-md shadow-herb-700/30">
               🌿
             </div>
@@ -612,44 +643,16 @@ function getSavedRemedies() {
                 {t.brandTag}
               </p>
             </div>
-          </a>
+          </Link>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden gap-1 text-sm font-medium text-gray-600 sm:flex">
-              {navLinks.map(({ href, label }) => (
-                <a
-                  key={href}
-                  href={href}
-                  className="rounded-full px-4 py-2 transition hover:bg-herb-50 hover:text-herb-700"
-                >
+            <div className="hidden gap-1 text-sm font-medium md:flex">
+              {navLinks.map(({ to, label }) => (
+                <NavLink key={to} to={to} end className={navClass}>
                   {label}
-                </a>
+                </NavLink>
               ))}
             </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setPage("home");
-                setShowAddForm(true);
-              }}
-              className="rounded-full bg-herb-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-herb-800"
-            >
-              + Add Your Remedy
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setPage("saved");
-                setShowAddForm(false);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className="rounded-full border border-herb-200 px-4 py-2 text-sm font-semibold text-herb-800 transition hover:bg-herb-50"
-            >
-              ♥ Saved ({savedRemedies.length})
-            </button>
-            
 
             <LanguageToggle
               lang={lang}
@@ -658,300 +661,387 @@ function getSavedRemedies() {
             />
           </div>
         </div>
+
+        <div className="flex gap-1 overflow-x-auto px-4 pb-3 text-sm font-medium md:hidden">
+          {navLinks.map(({ to, label }) => (
+            <NavLink key={to} to={to} end className={navClass}>
+              {label}
+            </NavLink>
+          ))}
+        </div>
       </nav>
 
-      {/* HERO */}
-      <section id="home" className="hero-bg relative overflow-hidden">
-        <div className="relative z-10 mx-auto max-w-7xl px-6 pb-20 pt-20 md:pt-28">
-          <div className="mx-auto max-w-4xl text-center">
-            <div className="animate-fade-up mb-6 inline-flex items-center gap-2 rounded-full border border-herb-200 bg-white/80 px-4 py-2 text-sm font-medium text-herb-800 shadow-sm backdrop-blur">
-              <span>🌱</span>
-              <span>{t.badge}</span>
-            </div>
+      <Routes>
+        {/* ---------- HOME (info page) ---------- */}
+        <Route
+          path="/"
+          element={
+            <>
+              <section className="hero-bg relative overflow-hidden">
+                <div className="relative z-10 mx-auto max-w-7xl px-6 pb-20 pt-20 md:pt-28">
+                  <div className="mx-auto max-w-4xl text-center">
+                    <div className="animate-fade-up mb-6 inline-flex items-center gap-2 rounded-full border border-herb-200 bg-white/80 px-4 py-2 text-sm font-medium text-herb-800 shadow-sm backdrop-blur">
+                      <span>🌱</span>
+                      <span>{t.badge}</span>
+                    </div>
 
-            <h2
-              className={`animate-fade-up font-bold text-ink ${
-                isMr
-                  ? "text-4xl leading-[1.4] md:text-6xl"
-                  : "text-5xl leading-[1.08] md:text-7xl"
-              }`}
-              style={{ animationDelay: "80ms" }}
-            >
-              {t.heroLine1}
-              <span className="text-gradient block">{t.heroLine2}</span>
-            </h2>
+                    <h2
+                      className={`animate-fade-up font-bold text-ink ${
+                        isMr
+                          ? "text-4xl leading-[1.4] md:text-6xl"
+                          : "text-5xl leading-[1.08] md:text-7xl"
+                      }`}
+                      style={{ animationDelay: "80ms" }}
+                    >
+                      {t.heroLine1}
+                      <span className="text-gradient block">{t.heroLine2}</span>
+                    </h2>
 
-            <p
-              className="animate-fade-up mx-auto mt-7 max-w-2xl text-lg leading-8 text-gray-600"
-              style={{ animationDelay: "160ms" }}
-            >
-              {t.heroSub}
-            </p>
+                    <p
+                      className="animate-fade-up mx-auto mt-7 max-w-2xl text-lg leading-8 text-gray-600"
+                      style={{ animationDelay: "160ms" }}
+                    >
+                      {t.heroSub}
+                    </p>
 
-            {/* SEARCH */}
-            <form
-              className="animate-fade-up mx-auto mt-10 max-w-3xl"
-              style={{ animationDelay: "240ms" }}
-              onSubmit={(e) => {
-                e.preventDefault();
-                searchRemedies();
-              }}
-              role="search"
-            >
-              <div className="search-box flex flex-col gap-3 rounded-3xl border border-gray-200 bg-white p-3 shadow-lift md:flex-row">
-                <div className="flex flex-1 items-center gap-3 px-4">
-                  <span className="text-xl" aria-hidden="true">
-                    🔍
-                  </span>
+                    <div className="mt-10 flex flex-wrap justify-center gap-3">
+                      <Link
+                        to="/search"
+                        className="rounded-2xl bg-gradient-to-b from-herb-600 to-herb-800 px-8 py-3.5 font-semibold text-white shadow-md shadow-herb-800/30"
+                      >
+                        {isMr ? "उपाय शोधा" : "Find a remedy"}
+                      </Link>
+                      <Link
+                        to="/share"
+                        className="rounded-2xl border border-herb-200 bg-white px-8 py-3.5 font-semibold text-herb-800"
+                      >
+                        {isMr ? "उपाय शेअर करा" : "Share a remedy"}
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder={t.placeholder}
-                    aria-label={t.searchAria}
-                    className="w-full bg-transparent py-3 text-lg text-ink outline-none placeholder:text-gray-400"
-                  />
+              {/* FEATURES */}
+              <section className="border-y border-herb-100 bg-white">
+                <div className="mx-auto grid max-w-7xl gap-6 px-6 py-16 md:grid-cols-3">
+                  {t.features.map((feature, i) => (
+                    <div
+                      key={feature.icon}
+                      className="animate-fade-up rounded-3xl border border-herb-100 bg-cream/60 p-8 text-center transition hover:-translate-y-1 hover:shadow-soft"
+                      style={{ animationDelay: `${i * 100}ms` }}
+                    >
+                      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm ring-1 ring-herb-100">
+                        {feature.icon}
+                      </div>
 
-                  {query && (
+                      <h3 className="font-display text-lg font-semibold text-ink">
+                        {feature.title}
+                      </h3>
+
+                      <p className="mt-2 text-sm leading-6 text-gray-600">
+                        {feature.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </>
+          }
+        />
+
+        {/* ---------- SEARCH ---------- */}
+        <Route
+          path="/search"
+          element={
+            <>
+              <section className="hero-bg relative overflow-hidden">
+                <div className="relative z-10 mx-auto max-w-4xl px-6 pb-12 pt-14 text-center">
+                  <h2 className="mb-8 text-4xl font-bold text-ink">
+                    {isMr ? "उपाय शोधा" : "Find a remedy"}
+                  </h2>
+
+                  <form
+                    className="mx-auto max-w-3xl"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      searchRemedies();
+                    }}
+                    role="search"
+                  >
+                    <div className="search-box flex flex-col gap-3 rounded-3xl border border-gray-200 bg-white p-3 shadow-lift md:flex-row">
+                      <div className="flex flex-1 items-center gap-3 px-4">
+                        <span className="text-xl" aria-hidden="true">
+                          🔍
+                        </span>
+
+                        <input
+                          type="text"
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                          placeholder={t.placeholder}
+                          aria-label={t.searchAria}
+                          className="w-full bg-transparent py-3 text-lg text-ink outline-none placeholder:text-gray-400"
+                        />
+
+                        {query && (
+                          <button
+                            type="button"
+                            onClick={clearSearch}
+                            aria-label={t.clearAria}
+                            className="rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="rounded-2xl bg-gradient-to-b from-herb-600 to-herb-800 px-9 py-3.5 font-semibold text-white shadow-md shadow-herb-800/30 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {loading ? t.searching : t.search}
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+                    <span className="text-sm text-gray-500">{t.popular}</span>
+
+                    {POPULAR.map((item) => (
+                      <button
+                        key={item.query}
+                        onClick={() => handlePopularSearch(item)}
+                        className="rounded-full border border-herb-200 bg-white/90 px-4 py-2 text-sm font-medium text-herb-800 transition hover:-translate-y-0.5 hover:border-herb-400 hover:bg-herb-50 hover:shadow-md"
+                      >
+                        {item[lang]}
+                      </button>
+                    ))}
+                  </div>
+                  {conditions.length > 0 && (
                     <button
                       type="button"
-                      onClick={clearSearch}
-                      aria-label={t.clearAria}
-                      className="rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                      onClick={() => setShowAllConditions((v) => !v)}
+                      className="mt-5 text-sm font-semibold text-herb-700 underline-offset-4 hover:underline"
                     >
-                      ✕
+                      {showAllConditions
+                        ? isMr
+                          ? "कमी दाखवा"
+                          : "Show fewer"
+                        : isMr
+                        ? `सर्व ${conditions.length} आजार पहा`
+                        : `Browse all ${conditions.length} conditions`}
                     </button>
                   )}
+
+                  {showAllConditions && (
+                    <div className="mx-auto mt-5 flex max-w-4xl flex-wrap justify-center gap-2">
+                      {conditions.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => handleConditionSearch(name)}
+                          className="rounded-full border border-herb-200 bg-white px-3 py-1.5 text-sm capitalize text-herb-800 transition hover:bg-herb-50"
+                        >
+                          {tr("condition", name, lang) || name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              </section>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="rounded-2xl bg-gradient-to-b from-herb-600 to-herb-800 px-9 py-3.5 font-semibold text-white shadow-md shadow-herb-800/30 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading ? t.searching : t.search}
-                </button>
+              {/* ERROR */}
+              {errorText && (
+                <div className="mx-auto max-w-3xl px-6 pt-8" role="alert">
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
+                    {errorText}
+                  </div>
+                </div>
+              )}
+
+              {/* RESULTS */}
+              <div ref={resultsRef}>
+                {hasSearched && (
+                  <section className="mx-auto max-w-6xl px-6 pb-20 pt-14">
+                    <div className="mb-8">
+                      <p className="text-sm font-semibold uppercase tracking-widest text-herb-600">
+                        {t.resultsLabel}
+                      </p>
+
+                      <h2 className="mt-2 text-4xl font-bold text-ink">
+                        {t.resultsTitle}
+                      </h2>
+
+                      <p className="mt-2 text-gray-500">
+                        {loading
+                          ? t.resultsLoading
+                          : results.length > 0
+                          ? t.resultsTop(results.length, lastQuery)
+                          : t.resultsDefault}
+                      </p>
+                    </div>
+
+                    {loading && (
+                      <div className="grid gap-6 md:grid-cols-2">
+                        {[0, 1, 2, 3].map((i) => (
+                          <SkeletonCard key={i} />
+                        ))}
+                      </div>
+                    )}
+
+                    {!loading && results.length > 0 && (
+                      <div className="grid gap-6 md:grid-cols-2">
+                        {results.map((remedy, i) => (
+                          <ResultCard
+                            key={remedy.remedy_id}
+                            remedy={remedy}
+                            index={i}
+                            lang={lang}
+                            t={t}
+                            isSaved={savedRemedies.some(
+                              (item) =>
+                                String(item.remedy_id) === String(remedy.remedy_id)
+                            )}
+                            onToggleSave={toggleSavedRemedy}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {!loading && !error && results.length === 0 && (
+                      <div className="rounded-3xl border border-dashed border-herb-200 bg-white/60 p-12 text-center">
+                        <p className="text-4xl">🍃</p>
+                        <h3 className="font-display mt-3 text-xl font-semibold">
+                          {t.emptyTitle}
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-500">{t.emptyHint}</p>
+                      </div>
+                    )}
+                  </section>
+                )}
               </div>
-            </form>
+            </>
+          }
+        />
 
-            {/* POPULAR SEARCHES */}
-            <div
-              className="animate-fade-up mt-7 flex flex-wrap items-center justify-center gap-3"
-              style={{ animationDelay: "320ms" }}
-            >
-              <span className="text-sm text-gray-500">{t.popular}</span>
+        {/* ---------- SHARE ---------- */}
+        <Route
+          path="/share"
+          element={<AddRemedyForm onClose={() => navigate("/")} />}
+        />
 
-              {POPULAR.map((item) => (
-                <button
-                  key={item.query}
-                  onClick={() => handlePopularSearch(item)}
-                  className="rounded-full border border-herb-200 bg-white/90 px-4 py-2 text-sm font-medium text-herb-800 transition hover:-translate-y-0.5 hover:border-herb-400 hover:bg-herb-50 hover:shadow-md"
-                >
-                  {item[lang]}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ERROR */}
-      {errorText && (
-        <div className="mx-auto max-w-3xl px-6 pt-8" role="alert">
-          <div className="animate-fade-up rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
-            {errorText}
-          </div>
-        </div>
-      )}
-
-      {/* RESULTS AREA */}
-      <div ref={resultsRef}>
-        {hasSearched && (
-          <section className="mx-auto max-w-6xl px-6 pb-20 pt-14">
-            <div className="mb-8">
+        {/* ---------- SAVED ---------- */}
+        <Route
+          path="/saved"
+          element={
+            <section className="mx-auto max-w-6xl px-6 py-14">
               <p className="text-sm font-semibold uppercase tracking-widest text-herb-600">
-                {t.resultsLabel}
+                Your personal collection
               </p>
 
               <h2 className="mt-2 text-4xl font-bold text-ink">
-                {t.resultsTitle}
+                My Remedy Box ♥
               </h2>
 
               <p className="mt-2 text-gray-500">
-                {loading
-                  ? t.resultsLoading
-                  : results.length > 0
-                  ? t.resultsTop(results.length, lastQuery)
-                  : t.resultsDefault}
+                Your saved remedies stay in this browser, even after refreshing.
               </p>
-            </div>
 
-            {loading && (
-              <div className="grid gap-6 md:grid-cols-2">
-                {[0, 1, 2, 3].map((i) => (
-                  <SkeletonCard key={i} />
-                ))}
-              </div>
-            )}
-
-            {!loading && results.length > 0 && (
-              <div className="grid gap-6 md:grid-cols-2">
-                {results.map((remedy, i) => (
-                  
-                  <ResultCard
-                    key={remedy.remedy_id}
-                    remedy={remedy}
-                    index={i}
-                    lang={lang}
-                    t={t}
-                    isSaved={savedRemedies.some(
-                      (item) => String(item.remedy_id) === String(remedy.remedy_id)
-                    )}
-                    onToggleSave={toggleSavedRemedy}
-                  />
-
-                ))}
-              </div>
-            )}
-
-            {!loading && !error && results.length === 0 && (
-              <div className="rounded-3xl border border-dashed border-herb-200 bg-white/60 p-12 text-center">
-                <p className="text-4xl">🍃</p>
-                <h3 className="font-display mt-3 text-xl font-semibold">
-                  {t.emptyTitle}
-                </h3>
-                <p className="mt-1 text-sm text-gray-500">{t.emptyHint}</p>
-              </div>
-            )}
-          </section>
-        )}
-      </div>
-
-      {page === "saved" && (
-        <section className="mx-auto max-w-6xl px-6 py-14">
-          <p className="text-sm font-semibold uppercase tracking-widest text-herb-600">
-            Your personal collection
-          </p>
-
-          <h2 className="mt-2 text-4xl font-bold text-ink">
-            My Remedy Box ♥
-          </h2>
-
-          <p className="mt-2 text-gray-500">
-            Your saved remedies stay in this browser, even after refreshing.
-          </p>
-
-          {savedRemedies.length === 0 ? (
-            <div className="mt-8 rounded-3xl border border-dashed border-herb-200 bg-white p-12 text-center">
-              <p className="text-4xl">🍃</p>
-              <h3 className="mt-3 text-xl font-semibold">
-                Your box is empty
-              </h3>
-              <p className="mt-2 text-sm text-gray-500">
-                Search for remedies and tap ♡ Save remedy to add them here.
-              </p>
-              <button
-                type="button"
-                onClick={() => setPage("home")}
-                className="mt-5 rounded-full bg-herb-700 px-5 py-3 font-semibold text-white"
-              >
-                Explore remedies
-              </button>
-            </div>
-          ) : (
-            <div className="mt-8 grid gap-6 md:grid-cols-2">
-              {savedRemedies.map((remedy, i) => (
-                <ResultCard
-                  key={remedy.remedy_id}
-                  remedy={remedy}
-                  index={i}
-                  lang={lang}
-                  t={t}
-                  isSaved
-                  onToggleSave={toggleSavedRemedy}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-      
-
-      {/* FEATURES */}
-      {!hasSearched && (
-        <section className="border-y border-herb-100 bg-white">
-          <div className="mx-auto grid max-w-7xl gap-6 px-6 py-16 md:grid-cols-3">
-            {t.features.map((feature, i) => (
-              <div
-                key={feature.icon}
-                className="animate-fade-up rounded-3xl border border-herb-100 bg-cream/60 p-8 text-center transition hover:-translate-y-1 hover:shadow-soft"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm ring-1 ring-herb-100">
-                  {feature.icon}
+              {savedRemedies.length === 0 ? (
+                <div className="mt-8 rounded-3xl border border-dashed border-herb-200 bg-white p-12 text-center">
+                  <p className="text-4xl">🍃</p>
+                  <h3 className="mt-3 text-xl font-semibold">Your box is empty</h3>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Search for remedies and tap ♡ Save remedy to add them here.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/search")}
+                    className="mt-5 rounded-full bg-herb-700 px-5 py-3 font-semibold text-white"
+                  >
+                    Explore remedies
+                  </button>
                 </div>
+              ) : (
+                <div className="mt-8 grid gap-6 md:grid-cols-2">
+                  {savedRemedies.map((remedy, i) => (
+                    <ResultCard
+                      key={remedy.remedy_id}
+                      remedy={remedy}
+                      index={i}
+                      lang={lang}
+                      t={t}
+                      isSaved
+                      onToggleSave={toggleSavedRemedy}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          }
+        />
 
-                <h3 className="font-display text-lg font-semibold text-ink">
-                  {feature.title}
-                </h3>
+        {/* ---------- ABOUT + SAFETY ---------- */}
+        <Route
+          path="/about"
+          element={
+            <>
+              <section className="mx-auto max-w-5xl px-6 py-20">
+                <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-herb-800 to-herb-900 p-10 text-white md:p-14">
+                  <div
+                    aria-hidden="true"
+                    className="absolute -right-10 -top-10 text-[12rem] leading-none opacity-10"
+                  >
+                    🌿
+                  </div>
 
-                <p className="mt-2 text-sm leading-6 text-gray-600">
-                  {feature.text}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+                  <p className="relative text-sm font-semibold uppercase tracking-widest text-herb-300">
+                    {t.aboutLabel}
+                  </p>
 
-      {/* ABOUT */}
-      <section id="about" className="mx-auto max-w-5xl px-6 py-20">
-        <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-herb-800 to-herb-900 p-10 text-white md:p-14">
-          <div
-            aria-hidden="true"
-            className="absolute -right-10 -top-10 text-[12rem] leading-none opacity-10"
-          >
-            🌿
-          </div>
+                  <h2 className="relative mt-4 text-3xl font-bold md:text-4xl">
+                    {t.aboutTitle}
+                  </h2>
 
-          <p className="relative text-sm font-semibold uppercase tracking-widest text-herb-300">
-            {t.aboutLabel}
-          </p>
+                  <p className="relative mt-5 max-w-3xl leading-8 text-herb-100">
+                    {t.aboutText}
+                  </p>
+                </div>
+              </section>
 
-          <h2 className="relative mt-4 text-3xl font-bold md:text-4xl">
-            {t.aboutTitle}
-          </h2>
+              <section className="mx-auto max-w-5xl px-6 pb-20">
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 md:p-8">
+                  <div className="flex gap-4">
+                    <div className="text-2xl" aria-hidden="true">
+                      ⚠️
+                    </div>
 
-          <p className="relative mt-5 max-w-3xl leading-8 text-herb-100">
-            {t.aboutText}
-          </p>
-        </div>
-      </section>
+                    <div>
+                      <h3 className="font-display text-lg font-semibold text-amber-900">
+                        {t.safetyTitle}
+                      </h3>
 
-      {/* SAFETY */}
-      <section id="safety" className="mx-auto max-w-5xl px-6 pb-20">
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 md:p-8">
-          <div className="flex gap-4">
-            <div className="text-2xl" aria-hidden="true">
-              ⚠️
-            </div>
+                      <p className="mt-2 text-sm leading-6 text-amber-800">
+                        {t.safetyText}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </>
+          }
+        />
 
-            <div>
-              <h3 className="font-display text-lg font-semibold text-amber-900">
-                {t.safetyTitle}
-              </h3>
+        <Route
+          path="*"
+          element={
+            <p className="px-6 py-20 text-center text-gray-500">Page not found</p>
+          }
+        />
+      </Routes>
 
-              <p className="mt-2 text-sm leading-6 text-amber-800">
-                {t.safetyText}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-      {showAddForm && (
-        <AddRemedyForm onClose={() => setShowAddForm(false)} />
-      )}
       {/* FOOTER */}
       <footer className="border-t border-herb-100 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 py-8 text-center text-sm text-gray-500">
@@ -961,6 +1051,7 @@ function getSavedRemedies() {
       </footer>
     </div>
   );
+
 }
 
 export default App;

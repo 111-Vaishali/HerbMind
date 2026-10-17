@@ -92,6 +92,11 @@ def submit_remedy(submission: RemedySubmission):
     }
 
 
+@app.get("/conditions")
+def conditions():
+    names = df["normalized_condition"].dropna().astype(str).str.strip()
+    return {"conditions": sorted(set(n for n in names if n))}
+
 @app.get("/")
 def home():
 
